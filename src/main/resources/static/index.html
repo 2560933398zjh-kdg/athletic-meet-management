@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运动会管理系统 - 运动员管理</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: auto; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: inline-block; width: 60px; }
+        input, button { padding: 5px 10px; }
+        .edit-form { margin-top: 20px; border: 1px solid #ccc; padding: 15px; background: #f9f9f9; display: none; }
+        .edit-form h3 { margin-top: 0; }
+        button { cursor: pointer; }
+        .delete-btn { background-color: #f44336; color: white; border: none; }
+        .edit-btn { background-color: #4CAF50; color: white; border: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🏅 运动员管理系统</h2>
+
+    <!-- 添加运动员表单 -->
+    <div style="border:1px solid #ccc; padding:15px; margin-bottom:20px;">
+        <h3>添加运动员</h3>
+        <div class="form-group">
+            <label>姓名：</label>
+            <input type="text" id="addName" placeholder="姓名">
+        </div>
+        <div class="form-group">
+            <label>性别：</label>
+            <input type="text" id="addGender" placeholder="性别">
+        </div>
+        <div class="form-group">
+            <label>团队：</label>
+            <input type="text" id="addTeam" placeholder="团队">
+        </div>
+        <button onclick="addAthlete()">添加</button>
+    </div>
+
+    <!-- 运动员列表表格 -->
+    <h3>运动员列表</h3>
+    <table id="athleteTable">
+        <thead>
+        <tr><th>ID</th><th>姓名</th><th>性别</th><th>团队</th><th>操作</th></tr>
+        </thead>
+        <tbody id="tableBody">
+        <tr><td colspan="5">加载中...</td></tr>
+        </tbody>
+    </table>
+
+    <!-- 编辑运动员表单（默认隐藏） -->
+    <div id="editForm" class="edit-form">
+        <h3>编辑运动员</h3>
+        <div class="form-group">
+            <label>ID：</label>
+            <input type="text" id="editId" readonly>
+        </div>
+        <div class="form-group">
+            <label>姓名：</label>
+            <input type="text" id="editName">
+        </div>
+        <div class="form-group">
+            <label>性别：</label>
+            <input type="text" id="editGender">
+        </div>
+        <div class="form-group">
+            <label>团队：</label>
+            <input type="text" id="editTeam">
+        </div>
+        <button onclick="updateAthlete()">保存修改</button>
+        <button onclick="hideEditForm()">取消</button>
+    </div>
+</div>
+
+<script>
+    // 加载运动员列表
+    function loadAthletes() {
+        fetch('/api/athletes')
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('tableBody');
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">暂无数据</td></tr>';
+                    return;
+                }
+                let html = '';
+                data.forEach(ath => {
+                    html += `
+                        <tr>
+                            <td>${ath.id}</td>
+                            <td>${ath.name}</td>
+                            <td>${ath.gender || ''}</td>
+                            <td>${ath.team || ''}</td>
+                            <td>
+                                <button class="edit-btn" onclick="showEditForm(${ath.id}, '${ath.name}', '${ath.gender || ''}', '${ath.team || ''}')">编辑</button>
+                                <button class="delete-btn" onclick="deleteAthlete(${ath.id})">删除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('加载失败:', error);
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="5">加载失败，请检查后端</td></tr>';
+            });
+    }
+
+    // 添加运动员
+    function addAthlete() {
+        const name = document.getElementById('addName').value.trim();
+        const gender = document.getElementById('addGender').value.trim();
+        const team = document.getElementById('addTeam').value.trim();
+
+        if (!name) {
+            alert('姓名不能为空');
+            return;
+        }
+
+        const athlete = { name, gender, team };
+
+        fetch('/api/athletes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(athlete)
+        })
+            .then(response => response.text())
+            .then(msg => {
+                alert(msg);
+                // 清空表单
+                document.getElementById('addName').value = '';
+                document.getElementById('addGender').value = '';
+                document.getElementById('addTeam').value = '';
+                loadAthletes(); // 刷新列表
+            })
+            .catch(error => {
+                alert('添加失败: ' + error);
+            });
+    }
+
+    // 显示编辑表单并填充数据
+    function showEditForm(id, name, gender, team) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editGender').value = gender;
+        document.getElementById('editTeam').value = team;
+        document.getElementById('editForm').style.display = 'block';
+    }
+
+    // 隐藏编辑表单
+    function hideEditForm() {
+        document.getElementById('editForm').style.display = 'none';
+    }
+
+    // 更新运动员
+    function updateAthlete() {
+        const id = parseInt(document.getElementById('editId').value);
+        const name = document.getElementById('editName').value.trim();
+        const gender = document.getElementById('editGender').value.trim();
+        const team = document.getElementById('editTeam').value.trim();
+
+        if (!name) {
+            alert('姓名不能为空');
+            return;
+        }
+
+        const athlete = { id, name, gender, team };
+
+        fetch('/api/athletes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(athlete)
+        })
+            .then(response => response.text())
+            .then(msg => {
+                alert(msg);
+                hideEditForm();
+                loadAthletes(); // 刷新列表
+            })
+            .catch(error => {
+                alert('更新失败: ' + error);
+            });
+    }
+
+    // 删除运动员
+    function deleteAthlete(id) {
+        if (confirm(`确定要删除ID为 ${id} 的运动员吗？`)) {
+            fetch(`/api/athletes/${id}`, {
+                method: 'DELETE'
+            })
+                .then(response => response.text())
+                .then(msg => {
+                    alert(msg);
+                    loadAthletes(); // 刷新列表
+                })
+                .catch(error => {
+                    alert('删除失败: ' + error);
+                });
+        }
+    }
+
+    // 页面加载时获取列表
+    window.onload = loadAthletes;
+</script>
+</body>
+</html>

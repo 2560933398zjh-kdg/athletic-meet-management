@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运动会系统 - 综合测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { border-left: 5px solid #4CAF50; padding-left: 10px; margin-top: 0; }
+        .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .card { flex: 1; background: #fafafa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
+        .card h3 { margin-top: 0; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+        th { background: #e0e0e0; }
+        button { cursor: pointer; padding: 4px 8px; margin: 2px; }
+        .add-btn { background: #4CAF50; color: white; border: none; padding: 6px 12px; }
+        .edit-btn { background: #2196F3; color: white; border: none; }
+        .delete-btn { background: #f44336; color: white; border: none; }
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: inline-block; width: 70px; }
+        input, select { padding: 5px; width: 180px; }
+        .message { padding: 8px; margin: 10px 0; background: #e7f3fe; border-left: 4px solid #2196F3; }
+        .error { background: #ffe7e7; border-left-color: #f44336; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🏅 运动会管理系统 - 前后端联调测试</h2>
+
+    <!-- 两列布局 -->
+    <div class="flex-row">
+        <!-- 左侧：运动员管理 -->
+        <div class="card">
+            <h3>运动员管理</h3>
+            <div class="input-group">
+                <label>姓名：</label><input type="text" id="athName" placeholder="姓名">
+            </div>
+            <div class="input-group">
+                <label>性别：</label><input type="text" id="athGender" placeholder="性别">
+            </div>
+            <div class="input-group">
+                <label>团队：</label><input type="text" id="athTeam" placeholder="团队">
+            </div>
+            <button class="add-btn" onclick="addAthlete()">添加运动员</button>
+            <button onclick="loadAthletes()">刷新列表</button>
+
+            <h4>运动员列表</h4>
+            <table id="athleteTable">
+                <thead><tr><th>ID</th><th>姓名</th><th>性别</th><th>团队</th><th>操作</th></tr></thead>
+                <tbody id="athleteTbody"><tr><td colspan="5">加载中...</td></tr></tbody>
+            </table>
+            <div id="athMsg" class="message"></div>
+        </div>
+
+        <!-- 右侧：成绩管理 -->
+        <div class="card">
+            <h3>成绩管理</h3>
+            <div class="input-group">
+                <label>运动员：</label>
+                <select id="scoreAthleteId"></select>
+            </div>
+            <div class="input-group">
+                <label>项目：</label>
+                <select id="scoreEventId"></select>
+            </div>
+            <div class="input-group">
+                <label>成绩：</label><input type="number" step="0.01" id="scoreValue" placeholder="成绩">
+            </div>
+            <button class="add-btn" onclick="submitScore()">录入成绩</button>
+            <button onclick="loadEventsAndAthletes()">刷新选项</button>
+
+            <h4>成绩排名（按项目）</h4>
+            <div class="input-group">
+                <label>选择项目：</label>
+                <select id="rankEventId"></select>
+                <button onclick="loadRank()">查看排名</button>
+            </div>
+            <table id="rankTable">
+                <thead><tr><th>运动员</th><th>项目</th><th>成绩</th></tr></thead>
+                <tbody id="rankTbody"><tr><td colspan="3">请选择项目并点击查看</td></tr></tbody>
+            </table>
+            <div id="scoreMsg" class="message"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== 通用工具 ====================
+    function showMessage(element, msg, isError = false) {
+        element.innerText = msg;
+        element.className = 'message' + (isError ? ' error' : '');
+        setTimeout(() => { element.innerText = ''; }, 3000);
+    }
+
+    // ==================== 运动员相关 ====================
+    async function loadAthletes() {
+        try {
+            const res = await fetch('/api/athletes');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const athletes = await res.json();
+            const tbody = document.getElementById('athleteTbody');
+            if (athletes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">暂无数据</td></tr>';
+                return;
+            }
+            let html = '';
+            athletes.forEach(a => {
+                html += `<tr>
+                    <td>${a.id}</td>
+                    <td>${escapeHtml(a.name)}</td>
+                    <td>${escapeHtml(a.gender || '')}</td>
+                    <td>${escapeHtml(a.team || '')}</td>
+                    <td>
+                        <button class="edit-btn" onclick="editAthlete(${a.id}, '${escapeHtml(a.name)}', '${escapeHtml(a.gender || '')}', '${escapeHtml(a.team || '')}')">编辑</button>
+                        <button class="delete-btn" onclick="deleteAthlete(${a.id})">删除</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } catch (err) {
+            document.getElementById('athleteTbody').innerHTML = '<tr><td colspan="5">加载失败</td></tr>';
+            showMessage(document.getElementById('athMsg'), '加载运动员失败: ' + err.message, true);
+        }
+    }
+
+    async function addAthlete() {
+        const name = document.getElementById('athName').value.trim();
+        if (!name) { alert('姓名不能为空'); return; }
+        const gender = document.getElementById('athGender').value.trim();
+        const team = document.getElementById('athTeam').value.trim();
+        try {
+            const res = await fetch('/api/athletes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, gender, team })
+            });
+            const text = await res.text();
+            if (res.ok) {
+                showMessage(document.getElementById('athMsg'), text);
+                document.getElementById('athName').value = '';
+                document.getElementById('athGender').value = '';
+                document.getElementById('athTeam').value = '';
+                loadAthletes();
+                loadEventsAndAthletes(); // 更新成绩下拉框
+            } else {
+                showMessage(document.getElementById('athMsg'), '添加失败: ' + text, true);
+            }
+        } catch (err) {
+            showMessage(document.getElementById('athMsg'), '请求失败: ' + err.message, true);
+        }
+    }
+
+    async function deleteAthlete(id) {
+        if (!confirm(`确定删除ID=${id}的运动员吗？`)) return;
+        try {
+            const res = await fetch(`/api/athletes/${id}`, { method: 'DELETE' });
+            const text = await res.text();
+            if (res.ok) {
+                showMessage(document.getElementById('athMsg'), text);
+                loadAthletes();
+                loadEventsAndAthletes();
+            } else {
+                showMessage(document.getElementById('athMsg'), '删除失败: ' + text, true);
+            }
+        } catch (err) {
+            showMessage(document.getElementById('athMsg'), '请求失败: ' + err.message, true);
+        }
+    }
+
+    function editAthlete(id, name, gender, team) {
+        const newName = prompt('修改姓名', name);
+        if (newName === null) return;
+        const newGender = prompt('修改性别', gender);
+        const newTeam = prompt('修改团队', team);
+        fetch('/api/athletes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name: newName, gender: newGender, team: newTeam })
+        })
+            .then(res => res.text())
+            .then(msg => {
+                showMessage(document.getElementById('athMsg'), msg);
+                loadAthletes();
+                loadEventsAndAthletes();
+            })
+            .catch(err => showMessage(document.getElementById('athMsg'), '更新失败: ' + err.message, true));
+    }
+
+    // ==================== 成绩相关 ====================
+    async function loadEventsAndAthletes() {
+        // 加载运动员下拉框
+        try {
+            const athRes = await fetch('/api/athletes');
+            const athletes = await athRes.json();
+            const athSelect = document.getElementById('scoreAthleteId');
+            athSelect.innerHTML = '<option value="">选择运动员</option>';
+            athletes.forEach(a => {
+                athSelect.innerHTML += `<option value="${a.id}">${escapeHtml(a.name)}</option>`;
+            });
+        } catch (err) { console.error('加载运动员失败', err); }
+
+        // 加载项目下拉框（用于录入和排名）
+        try {
+            const evRes = await fetch('/api/events');
+            const events = await evRes.json();
+            const eventSelect = document.getElementById('scoreEventId');
+            const rankSelect = document.getElementById('rankEventId');
+            eventSelect.innerHTML = '<option value="">选择项目</option>';
+            rankSelect.innerHTML = '<option value="">选择项目</option>';
+            events.forEach(e => {
+                eventSelect.innerHTML += `<option value="${e.id}">${escapeHtml(e.name)}</option>`;
+                rankSelect.innerHTML += `<option value="${e.id}">${escapeHtml(e.name)}</option>`;
+            });
+        } catch (err) { console.error('加载项目失败', err); }
+    }
+
+    async function submitScore() {
+        const athleteId = document.getElementById('scoreAthleteId').value;
+        const eventId = document.getElementById('scoreEventId').value;
+        const score = document.getElementById('scoreValue').value;
+        if (!athleteId || !eventId || !score) {
+            alert('请完整填写运动员、项目和成绩');
+            return;
+        }
+        try {
+            const res = await fetch('/api/scores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: parseInt(athleteId), eventId: parseInt(eventId), score: parseFloat(score) })
+            });
+            const text = await res.text();
+            if (res.ok) {
+                showMessage(document.getElementById('scoreMsg'), text);
+                document.getElementById('scoreValue').value = '';
+                // 如果当前排名选中的项目正好是录入的项目，自动刷新排名
+                const rankEvent = document.getElementById('rankEventId').value;
+                if (rankEvent && rankEvent === eventId) loadRank();
+            } else {
+                showMessage(document.getElementById('scoreMsg'), '录入失败: ' + text, true);
+            }
+        } catch (err) {
+            showMessage(document.getElementById('scoreMsg'), '请求失败: ' + err.message, true);
+        }
+    }
+
+    async function loadRank() {
+        const eventId = document.getElementById('rankEventId').value;
+        if (!eventId) {
+            alert('请先选择项目');
+            return;
+        }
+        try {
+            const res = await fetch(`/api/scores/rank/${eventId}`);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const list = await res.json();
+            const tbody = document.getElementById('rankTbody');
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">暂无成绩记录</td></tr>';
+                return;
+            }
+            let html = '';
+            list.forEach(item => {
+                html += `<tr>
+                    <td>${escapeHtml(item.athleteName)}</td>
+                    <td>${escapeHtml(item.eventName)}</td>
+                    <td>${item.score}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } catch (err) {
+            document.getElementById('rankTbody').innerHTML = '<tr><td colspan="3">加载失败</td></tr>';
+            showMessage(document.getElementById('scoreMsg'), '加载排名失败: ' + err.message, true);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // 页面加载
+    window.onload = () => {
+        loadAthletes();
+        loadEventsAndAthletes();
+    };
+</script>
+</body>
+</html>
